@@ -18,9 +18,9 @@
  * AUTHORS: Louay Bassbouss (louay.bassbouss@fokus.fraunhofer.de)
  *
  ******************************************************************************/
-var dial = require("../index.js");
+import { Client } from "../lib/peer-dial.js";
 
-var dialClient = new dial.Client();
+const dialClient = new Client();
 
 dialClient.on("ready",function(){
     console.log("DIAL client is ready");
@@ -37,14 +37,6 @@ dialClient.on("ready",function(){
                     dialDevice.launchApp("YouTube","v=YE7VzlLtp-4", "text/plain", function (launchRes, err) {
                         if(typeof launchRes != "undefined"){
                             console.log("YouTube Launched Successfully",launchRes);
-                            /*dialDevice.stopApp("YouTube","run", function (statusCode,err) {
-                                if(err){
-                                    console.error("Error on stop YouTube App:", err);
-                                }
-                                else {
-                                    console.log("DIAL stop YouTube App status: ",statusCode);
-                                }
-                            });*/
                         }
                         else if(err){
                             console.log("Error on Launch YouTube App",launchRes);

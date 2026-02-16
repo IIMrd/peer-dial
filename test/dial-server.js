@@ -18,80 +18,68 @@
  * AUTHORS: Louay Bassbouss (louay.bassbouss@fokus.fraunhofer.de)
  *
  ******************************************************************************/
-var dial = require("../index.js");
-var http = require('http');
-var express = require('express');
-var open = require("open");
-var app = express();
-var server = http.createServer(app);
+import { Server } from "../lib/peer-dial.js";
+import http from 'http';
+import express from 'express';
+import open from 'open';
 
-var PORT = 3000;
-var MANUFACTURER = "Fraunhofer FOKUS";
-var MODEL_NAME = "DIAL Demo Server";
+const app = express();
+const server = http.createServer(app);
 
-var apps = {
-	"YouTube": {
-		name: "YouTube",
-		state: "stopped",
-		allowStop: true,
-		pid: null,
-        /*
-        additionalData: {
-            "ex:key1":"value1",
-            "ex:key2":"value2"
-        },
-        namespaces: {
-           "ex": "urn:example:org:2014"
-        }*/
+const PORT = 3000;
+const MANUFACTURER = "Fraunhofer FOKUS";
+const MODEL_NAME = "DIAL Demo Server";
+
+const apps = {
+"YouTube": {
+name: "YouTube",
+state: "stopped",
+allowStop: true,
+pid: null,
         launch: function (launchData) {
             open("http://www.youtube.com/tv?"+launchData);
         }
-	}
+}
 };
-var dialServer = new dial.Server({
-	expressApp: app,
-	port: PORT,
+const dialServer = new Server({
+expressApp: app,
+port: PORT,
   prefix: "/dial",
-	corsAllowOrigins: "*",
-	manufacturer: MANUFACTURER,
-	modelName: MODEL_NAME,
-	/*extraHeaders: {
-		"X-MY_HEADER": "My Value"
-	},*/
-	delegate: {
-		getApp: function(appName){
-			var app = apps[appName];
-			return app;
-		},
-		launchApp: function(appName,lauchData,callback){
-			console.log("Got request to launch", appName," with launch data: ", lauchData);
-			var app = apps[appName];
-			var pid = null;
-			if (app) {
-				app.pid = "run";
-				app.state = "starting";
+corsAllowOrigins: "*",
+manufacturer: MANUFACTURER,
+modelName: MODEL_NAME,
+delegate: {
+getApp: function(appName){
+const app = apps[appName];
+return app;
+},
+launchApp: function(appName,lauchData,callback){
+console.log("Got request to launch", appName," with launch data: ", lauchData);
+const app = apps[appName];
+if (app) {
+app.pid = "run";
+app.state = "starting";
                 app.launch(lauchData);
                 app.state = "running";
-			}
-			callback(app.pid);
-		},
-		stopApp: function(appName,pid,callback){
+}
+callback(app.pid);
+},
+stopApp: function(appName,pid,callback){
             console.log("Got request to stop", appName," with pid: ", pid);
-			var app = apps[appName];
-			if (app && app.pid == pid) {
-				app.pid = null;
-				app.state = "stopped";
-				callback(true);
-			} 
-			else {
-				callback(false);
-			}
-		}
-	}
+const app = apps[appName];
+if (app && app.pid == pid) {
+app.pid = null;
+app.state = "stopped";
+callback(true);
+} 
+else {
+callback(false);
+}
+}
+}
 });
 
 server.listen(PORT,function(){
-	dialServer.start();
-	// dialServer.stop();
-	console.log("DIAL Server is running on PORT "+PORT);
+dialServer.start();
+console.log(`DIAL Server is running on PORT ${PORT}`);
 });
