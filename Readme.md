@@ -1,184 +1,198 @@
-peer-dial 
+peer-dial
 =========
 
 peer-dial is a simple Node.js module implementing the Discovery and Launch Protocol DIAL as described in the
 [Protocol Specification Document](http://www.dial-multiscreen.org/dial-protocol-specification)
 
-Dependencies
+This is a fork of the original [`peer-dial`](https://www.npmjs.com/package/peer-dial) by Fraunhofer FOKUS.
+
+Requirements
 ============
 
-  * [Node.js](https://nodejs.org/). tested with version 0.12.4
-  * `Node.js` includes also `npm` to install directly using npm CLI as described in setup.
+  * [Node.js](https://nodejs.org/) >= 20
+  * An [Express](https://expressjs.com/) v5 application (peer dependency) for the DIAL server
 
 Setup
 =====
 
-  * use `npm install peer-dial` to install the module.
+```bash
+npm install @iimrd/peer-dial
+```
 
 Run Examples
 ============
 
-  * run DIAL Server Example with `node node_modules/peer-dial/test/dial-server.js` 
-  * run DIAL Client Example with `node node_modules/peer-dial/test/dial-client.js`
+Build the project first, then run the server and client examples in the `test` folder:
+
+```bash
+npm run build
+node test/dial-server.js
+node test/dial-client.js
+```
 
 Usage
 =====
 
-The `peer-dial` modules contains implementation for DIAL Client and Server.
+`@iimrd/peer-dial` provides named exports for `Server`, `Client`, and `DialDevice`.
 
-For DIAL Server usage please have a look to the following example ([test/dial-server.js](test/dial-server.js)).  In this example the DIAL Server supports the "YouTube" App through DIAL. This DIAL Server should be discoverable from YouTube App on iOS or Android. Just click on the cast button in the YouTube mobile App and select the name of your device. You can extend this example to support your custum DIAL Apps. Additional configuration parameters like `additionalData`, `namespaces`, `extraHeaders`, etc.  which are not used in the YouTube DIAL App are commented in this example. `peer-dial` uses these parameters to generate the UPnP device description and DIAL app description xml as defined in the DIAL Spec.
+### DIAL Server
+
+The following example ([test/dial-server.js](test/dial-server.js)) starts a DIAL Server that exposes the "YouTube" app. The server should be discoverable by the YouTube app on iOS or Android — tap the cast button and select your device.
+
+You can extend this to register your own DIAL apps. Configuration parameters like `additionalData`, `namespaces`, `extraHeaders`, etc. are also supported; see the exported `ServerOptions` type for the full list.
 
 ```javascript
-var dial = require("peer-dial");
-var http = require('http');
-var express = require('express');
-var opn = require("opn");
-var app = express();
-var server = http.createServer(app);
-var PORT = 3000;
-var MANUFACTURER = "Fraunhofer FOKUS";
-var MODEL_NAME = "DIAL Demo Server";
-var apps = {
-	"YouTube": {
-		name: "YouTube",
-		state: "stopped",
-		allowStop: true,
-		pid: null,
-    /*
-    additionalData: {
-        "ex:key1":"value1",
-        "ex:key2":"value2"
+import { Server } from "@iimrd/peer-dial";
+import http from "http";
+import express from "express";
+import open from "open";
+
+const app = express();
+const server = http.createServer(app);
+
+const PORT = 3000;
+const MANUFACTURER = "Fraunhofer FOKUS";
+const MODEL_NAME = "DIAL Demo Server";
+
+const apps = {
+  YouTube: {
+    name: "YouTube",
+    state: "stopped",
+    allowStop: true,
+    pid: null,
+    launch(launchData) {
+      open("http://www.youtube.com/tv?" + launchData);
     },
-    namespaces: {
-       "ex": "urn:example:org:2014"
-    }*/
-    launch: function (launchData) {
-        opn("http://www.youtube.com/tv?"+launchData);
-    }
-	}
+  },
 };
-var dialServer = new dial.Server({
-	expressApp: app,
-	port: PORT,
-	prefix: "/dial",
-	manufacturer: MANUFACTURER,
-	modelName: MODEL_NAME,
-	/*extraHeaders: {
-		"X-MY_HEADER": "My Value"
-	},*/
-	delegate: {
-		getApp: function(appName){
-			var app = apps[appName];
-			return app;
-		},
-		launchApp: function(appName,lauchData,callback){
-			console.log("Got request to launch", appName," with launch data: ", lauchData);
-			var app = apps[appName];
-			var pid = null;
-			if (app) {
-				app.pid = "run";
-				app.state = "starting";
-                app.launch(lauchData);
-                app.state = "running";
-			}
-			callback(app.pid);
-		},
-		stopApp: function(appName,pid,callback){
-            console.log("Got request to stop", appName," with pid: ", pid);
-			var app = apps[appName];
-			if (app && app.pid == pid) {
-				app.pid = null;
-				app.state = "stopped";
-				callback(true);
-			}
-			else {
-				callback(false);
-			}
-		}
-	}
+
+const dialServer = new Server({
+  expressApp: app,
+  port: PORT,
+  prefix: "/dial",
+  corsAllowOrigins: "*",
+  manufacturer: MANUFACTURER,
+  modelName: MODEL_NAME,
+  delegate: {
+    getApp(appName) {
+      return apps[appName];
+    },
+    launchApp(appName, launchData, callback) {
+      console.log("Got request to launch", appName, "with launch data:", launchData);
+      const app = apps[appName];
+      if (app) {
+        app.pid = "run";
+        app.state = "starting";
+        app.launch(launchData);
+        app.state = "running";
+      }
+      callback(app.pid);
+    },
+    stopApp(appName, pid, callback) {
+      console.log("Got request to stop", appName, "with pid:", pid);
+      const app = apps[appName];
+      if (app && app.pid == pid) {
+        app.pid = null;
+        app.state = "stopped";
+        callback(true);
+      } else {
+        callback(false);
+      }
+    },
+  },
 });
-server.listen(PORT,function(){
-	dialServer.start();
-	// dialServer.stop();
-	console.log("DIAL Server is running on PORT "+PORT);
+
+server.listen(PORT, () => {
+  dialServer.start();
+  console.log(`DIAL Server is running on PORT ${PORT}`);
 });
 ```
 
-When creating the DIAL Server, you can also specify an option to control what Origins are allowed under [CORS](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing). By default, CORS is disabled.
-Set the origins to be allowed by providing a `corsAllowedOrigins` attribute. For example,
-to allow all origins:
+#### CORS
 
-    var dialServer = new dial.Server({
-        ...
-        corsAllowedOrigins: true,        // allow all origins
-        ...
-    });
-
-`corsAllowedOrigins` can also be set to a string, a regex, or a function. See the `origin` configuration
-option of the [cors package](https://www.npmjs.com/package/cors) for details.
-
-For DIAL Client usage please have a look to the following example ([test/dial-client.js](test/dial-client.js)). This example contains calls for all interfaces of DIAL Client and DIAL Device, some of them are commented like `dialDevice.stopApp(...)` and `dialClient.stop();`
+You can control which origins are allowed under [CORS](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing) via the `corsAllowOrigins` option. By default, CORS is disabled. To allow all origins:
 
 ```javascript
-var dial = require("peer-dial");
-var dialClient = new dial.Client();
-dialClient.on("ready",function(){
+const dialServer = new Server({
+  // ...
+  corsAllowOrigins: true,
+});
+```
+
+`corsAllowOrigins` accepts the same values as the `origin` option of the [cors package](https://www.npmjs.com/package/cors) (string, regex, function, etc.).
+
+### DIAL Client
+
+The following example ([test/dial-client.js](test/dial-client.js)) discovers DIAL devices on the network, queries app info, and launches YouTube.
+
+```javascript
+import { Client } from "@iimrd/peer-dial";
+
+const dialClient = new Client();
+
+dialClient
+  .on("ready", () => {
     console.log("DIAL client is ready");
-}).on("found",function(deviceDescriptionUrl, ssdpHeaders){
-    console.log("DIAL device found");
-    console.log("Request DIAL device description from",deviceDescriptionUrl);
-    dialClient.getDialDevice(deviceDescriptionUrl, function (dialDevice, err) {
-        if(dialDevice){
-            console.log("Got DIAL device description: ",dialDevice);
-            console.log("Request YouTube DIAL App from",dialDevice.applicationUrl);
-            dialDevice.getAppInfo("YouTube", function (appInfo, err) {
-                if(appInfo){
-                    console.log("Got YouTube App Info from", dialDevice.applicationUrl+"/YouTube");
-                    dialDevice.launchApp("YouTube","v=YE7VzlLtp-4", "text/plain", function (launchRes, err) {
-                        if(typeof launchRes != "undefined"){
-                            console.log("YouTube Launched Successfully",launchRes);
-                            /*dialDevice.stopApp("YouTube","run", function (statusCode,err) {
-                                if(err){
-                                    console.error("Error on stop YouTube App:", err);
-                                }
-                                else {
-                                    console.log("DIAL stop YouTube App status: ",statusCode);
-                                }
-                            });*/
-                        }
-                        else if(err){
-                            console.log("Error on Launch YouTube App",launchRes);
-                        }
-                    });
-                }
-                else if(err){
-                    console.error("Error on get YouTube App Info or YouTube App is not available on",deviceDescriptionUrl);
-                }
+  })
+  .on("found", (deviceDescriptionUrl, ssdpHeaders) => {
+    console.log("DIAL device found at", deviceDescriptionUrl);
+    dialClient.getDialDevice(deviceDescriptionUrl, (dialDevice, err) => {
+      if (dialDevice) {
+        console.log("Got DIAL device:", dialDevice);
+        dialDevice.getAppInfo("YouTube", (appInfo, err) => {
+          if (appInfo) {
+            console.log("YouTube app info:", appInfo);
+            dialDevice.launchApp("YouTube", "v=YE7VzlLtp-4", "text/plain", (launchRes, err) => {
+              if (typeof launchRes !== "undefined") {
+                console.log("YouTube launched successfully", launchRes);
+              } else if (err) {
+                console.error("Error launching YouTube:", err);
+              }
             });
-        }
-        else if(err){
-            console.error("Error on get DIAL device description from ",deviceDescriptionUrl, err);
-        }
+          } else if (err) {
+            console.error("YouTube not available on", deviceDescriptionUrl);
+          }
+        });
+      } else if (err) {
+        console.error("Error getting device description:", err);
+      }
     });
-}).on("disappear", function(deviceDescriptionUrl, dialDevice){
-    console.log("DIAL device ", deviceDescriptionUrl," disappeared");
-}).on("stop", function(){
-    console.log("DIAL client is stopped");
-}).start();
-// dialClient.stop();
+  })
+  .on("disappear", (deviceDescriptionUrl) => {
+    console.log("DIAL device disappeared:", deviceDescriptionUrl);
+  })
+  .on("stop", () => {
+    console.log("DIAL client stopped");
+  })
+  .start();
 ```
 
 API
 ===
 
-API description coming soon. Please refer to the examples above that demonstrate the usage of all features supported in `peer-dial`. Not used features are in the comments.
+### Exports
+
+| Export | Description |
+| --- | --- |
+| `Server` | DIAL server (extends `EventEmitter`) |
+| `Client` | DIAL client (extends `EventEmitter`) |
+| `DialDevice` | Represents a discovered DIAL device |
+
+### TypeScript
+
+The package ships with full type declarations. Key exported interfaces:
+
+- `ServerOptions` — constructor options for `Server`
+- `ServerDelegate` — delegate callbacks (`getApp`, `launchApp`, `stopApp`)
+- `AppInfo` — application information
+- `DeviceInfo` — parsed device description
+- `ParsedAppInfo` — app info returned by `DialDevice.getAppInfo`
 
 License
 =======
 
-Free for non commercial use released under the GNU Lesser General Public License v3.0
-, See LICENSE file.
+Free for non-commercial use released under the GNU Lesser General Public License v3.0. See LICENSE file.
 
-Contact us for commecial use famecontact@fokus.fraunhofer.de
+Contact us for commercial use: famecontact@fokus.fraunhofer.de
 
 Copyright (c) 2015 Fraunhofer FOKUS
