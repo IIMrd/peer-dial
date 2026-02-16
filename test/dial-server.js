@@ -18,7 +18,7 @@
  * AUTHORS: Louay Bassbouss (louay.bassbouss@fokus.fraunhofer.de)
  *
  ******************************************************************************/
-import { Server } from "../lib/peer-dial.js";
+import { Server } from "../dist/peer-dial.js";
 import http from 'http';
 import express from 'express';
 import open from 'open';

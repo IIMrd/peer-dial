@@ -18,7 +18,7 @@
  * AUTHORS: Louay Bassbouss (louay.bassbouss@fokus.fraunhofer.de)
  *
  ******************************************************************************/
-import { Client } from "../lib/peer-dial.js";
+import { Client } from "../dist/peer-dial.js";
 
 const dialClient = new Client();
 
